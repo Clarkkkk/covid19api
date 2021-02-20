@@ -1,36 +1,81 @@
 const fs = require('fs/promises');
 const path = require('path');
 const csv = require('csvtojson');
+const xml2js = require('xml2js');
+const schedule = require('node-schedule');
 const fetch = require('node-fetch');
 const express = require('express');
 const {F_OK} = require('constants');
-const app = express();
 
-app.get('/', function(req, res) {
-  res.send('Hello World!');
-});
+initialize();
 
-app.use(express.static('public'));
+async function initialize() {
+  // initialize server
+  const app = express();
+  app.get('/', function(req, res) {
+    res.send('Hello World!');
+  });
+  app.use(express.static('public'));
+  app.listen(3100, function() {
+    console.log('Covid 19 API is listening on port 3100');
+  });
 
-app.listen(3000, function() {
-  console.log('Example app listening on port 3000!');
-});
+  // create folder to store data
+  await createFolder(path.join(__dirname, 'response'));
+  await createFolder(path.join(__dirname, 'response/countries'));
 
-updateData();
+  // set schedule to update data
+  setSchedule();
+
+  // update data immediately
+  updateData();
+  updateNews();
+}
+
+async function createFolder(dirPath) {
+  try {
+    await fs.access(dirPath, F_OK);
+  } catch (e) {
+    await fs.mkdir(dirPath);
+    console.log('Folder created: ' + dirPath);
+  }
+}
+
+function setSchedule() {
+  const rule = new schedule.RecurrenceRule();
+  rule.hour = 14;
+  rule.minute = 0;
+  rule.tz = 'UTC+8';
+  schedule.scheduleJob(rule, () => {
+    updateData();
+    updateNews();
+  });
+}
+
+function updateNews() {
+  const newsUrl = 'http://localhost:3100/nCov2019.xml';
+  // const newsUrl = 'https://rsshub.app/telegram/channel/nCov2019';
+  const parser = new xml2js.Parser({explicitArray: false, ignoreAttrs: true});
+  fetch(newsUrl)
+    .then((res) => res.text())
+    .then((xml) => parser.parseStringPromise(xml))
+    .catch((err) => console.log(err))
+    .then((result) => {
+      const path = './response/news.json';
+      const dataStr = JSON.stringify(result.rss.channel.item);
+      // clear the folder first
+      return fs.writeFile(path, dataStr);
+    })
+    .then(() => console.log('File created: ./response/news.json'))
+    .catch((err) => console.log(err));
+}
 
 function updateData() {
-  // create folder to store source data
-  const dirPath = path.join(__dirname, 'sourceData');
-  fs.access(dirPath, F_OK)
-    .catch(() => fs.mkdir(dirPath))
-    .then(() => console.log('Folder created: ' + dirPath))
-    .catch((err) => console.log(err));
-
   // const url = 'https://raw.githubusercontent.com/datasets/covid-19/main/data/time-series-19-covid-combined.csv';
   // const countriesCsvUrl = 'https://raw.githubusercontent.com/datasets/covid-19/main/data/countries-aggregated.csv';
 
-  const TimeSeriesCsvUrl = 'http://localhost:3000/time-series-19-covid-combined.csv';
-  const countriesCsvUrl = 'http://localhost:3000/countries-aggregated.csv';
+  const TimeSeriesCsvUrl = 'http://localhost:3100/time-series-19-covid-combined.csv';
+  const countriesCsvUrl = 'http://localhost:3100/countries-aggregated.csv';
   Promise.all([
     fetchCsvToJSON(TimeSeriesCsvUrl),
     fetchCsvToJSON(countriesCsvUrl)
@@ -41,14 +86,14 @@ function updateData() {
   });
 }
 
-function createCountriesJSON(data) {
-  return Promise.all(Object.keys(data).map((country) => {
-    const path = './public/countries/' + country + '.json';
+async function createCountriesJSON(data) {
+  await clearFolder('./response/countries/');
+  for (const country of Object.keys(data)) {
+    const path = './response/countries/' + country + '.json';
     const dataStr = JSON.stringify(data[country]);
-    return fs.writeFile(path, dataStr)
-      .then(() => console.log('File created: ' + path))
-      .catch((err) => console.log(err));
-  }));
+    await fs.writeFile(path, dataStr);
+    console.log('File created: ' + path);
+  }
 }
 
 function createTodayJSON(data) {
@@ -71,12 +116,24 @@ function createTodayJSON(data) {
     }
   }
 
-  const path = './public/today/todayData.json';
+  const path = './response/todayData.json';
   const dataStr = JSON.stringify(todayData);
   return fs.writeFile(path, dataStr)
     .then(() => console.log('File created: ' + path))
     .catch((err) => console.log(err));
 }
+
+
+async function clearFolder(path) {
+  try {
+    const files = await fs.readdir(path);
+    for (const file of files) {
+      await fs.unlink(path + '/' + file);
+    }
+  } catch (err) {
+    console.log(err);
+  }
+};
 
 function normalizeData(rawData) {
   const startTime = Date.now();
@@ -178,7 +235,7 @@ function fetchCsvToJSON(url) {
       return new Promise((resolve) => {
         setTimeout(() => {
           resolve(fetch(url, {method: 'get'}));
-        }, 3000 * retryCount);
+        }, 3100 * retryCount);
       });
     } else {
       retryCount = 0;
