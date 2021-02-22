@@ -4,20 +4,91 @@ const csv = require('csvtojson');
 const xml2js = require('xml2js');
 const schedule = require('node-schedule');
 const fetch = require('node-fetch');
+const helmet = require('helmet');
 const express = require('express');
 const {F_OK} = require('constants');
 
-initialize();
+start();
 
-async function initialize() {
+async function start() {
   // initialize server
   const app = express();
+  app.use(
+    helmet({
+      dnsPrefetchControl: {allow: true},
+      referrerPolicy: {policy: ['same-origin']}
+    })
+  );
+
   app.get('/', function(req, res) {
-    res.send('Hello World!');
+    console.log(req);
+    res.send('Covid 19 API.');
   });
+
+  app.get('/latest', function(req, res) {
+    console.log(req);
+    const now = new Date(Date.now());
+    let expire = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      6
+    );
+    if (now.getUTCHours() >= 6) {
+      expire += 24 * 60 * 60 * 1000;
+    }
+    const maxAge = expire - Date.now() + 60000;
+    const filePath = './response/todayData.json';
+    respondFile(res, filePath, maxAge);
+  });
+
+  app.get('/news', function(req, res) {
+    console.log(req);
+    const filePath = './response/news.json';
+    respondFile(res, filePath, 1800000);
+  });
+
+  app.get('/countries/:country', (req, res) => {
+    console.log(req);
+    const now = new Date(Date.now());
+    let expire = Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      6
+    );
+    if (now.getUTCHours() >= 6) {
+      expire += 24 * 60 * 60 * 1000;
+    }
+    const maxAge = expire - Date.now() + 60000;
+    const country = req.params.country;
+    const filePath = './response/countries/' + country + '.json';
+    respondFile(res, filePath, maxAge);
+  });
+
+  function respondFile(res, filePath, maxAge) {
+    const options = {
+      root: path.join(__dirname),
+      maxAge
+    };
+    fs.access(filePath, F_OK).then(() => {
+      res.sendFile(filePath, options, (err) => {
+        if (err) {
+          console.log(err);
+        } else {
+          console.log('File sent: ' + filePath);
+        }
+      });
+    }).catch((err) => {
+      console.log('File not existed: ' + filePath);
+      console.log(err);
+      res.sendStatus(404);
+    });
+  }
+
   app.use(express.static('public'));
   app.listen(3100, function() {
-    console.log('Covid 19 API is listening on port 3100');
+    console.log('Covid 19 API running @ http://localhost:3100');
   });
 
   // create folder to store data
@@ -30,15 +101,6 @@ async function initialize() {
   // update data immediately
   updateData();
   updateNews();
-}
-
-async function createFolder(dirPath) {
-  try {
-    await fs.access(dirPath, F_OK);
-  } catch (e) {
-    await fs.mkdir(dirPath);
-    console.log('Folder created: ' + dirPath);
-  }
 }
 
 function setSchedule() {
@@ -123,18 +185,6 @@ function createTodayJSON(data) {
     .catch((err) => console.log(err));
 }
 
-
-async function clearFolder(path) {
-  try {
-    const files = await fs.readdir(path);
-    for (const file of files) {
-      await fs.unlink(path + '/' + file);
-    }
-  } catch (err) {
-    console.log(err);
-  }
-};
-
 function normalizeData(rawData) {
   const startTime = Date.now();
   const [timeSeriesData, countriesData] = rawData;
@@ -215,6 +265,26 @@ function normalizeData(rawData) {
 
   return result;
 }
+
+async function createFolder(dirPath) {
+  try {
+    await fs.access(dirPath, F_OK);
+  } catch (e) {
+    await fs.mkdir(dirPath);
+    console.log('Folder created: ' + dirPath);
+  }
+}
+
+async function clearFolder(path) {
+  try {
+    const files = await fs.readdir(path);
+    for (const file of files) {
+      await fs.unlink(path + '/' + file);
+    }
+  } catch (err) {
+    console.log(err);
+  }
+};
 
 let retryCount = 0;
 function fetchCsvToJSON(url) {
