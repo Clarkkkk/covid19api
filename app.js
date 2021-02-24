@@ -46,12 +46,15 @@ app.get('/news', function(req, res) {
 app.get('/countries/:country', (req, res) => {
   console.log(req);
   const now = new Date(Date.now());
+  // data expires at 6:00 UTC every day
   let expire = Date.UTC(
     now.getUTCFullYear(),
     now.getUTCMonth(),
     now.getUTCDate(),
     6
   );
+  // if it's later than 6:00 currently
+  // data expires at 6:00 in the next day
   if (now.getUTCHours() >= 6) {
     expire += 24 * 60 * 60 * 1000;
   }
@@ -63,6 +66,7 @@ app.get('/countries/:country', (req, res) => {
 
 app.use(express.static('public'));
 app.listen(3100, function() {
+  console.log('NODE_ENV is: ' + process.env.NODE_ENV);
   console.log('Covid 19 API running @ http://localhost:3100');
   initialize();
 });
@@ -74,14 +78,8 @@ async function initialize() {
   // update data immediately
   await updateData();
   await updateNews();
-  // set schedule to update data
-  // at 14:00 every day
-  const rule = new schedule.RecurrenceRule();
-  rule.hour = 14;
-  rule.minute = 0;
-  rule.tz = 'UTC+8';
-  schedule.scheduleJob(rule, () => {
-    updateData();
-    updateNews();
-  });
+  // set schedule to update data at 6:00 UTC every day
+  schedule.scheduleJob('0 6 * * *', () => updateData());
+  // set schedule to update news every hour
+  schedule.scheduleJob('0 * * * *', () => updateNews());
 }

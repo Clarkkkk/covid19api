@@ -9,9 +9,11 @@ async function updateData() {
     'https://raw.githubusercontent.com/datasets/covid-19/main/data';
   const TimeSeriesUrl = url + '/time-series-19-covid-combined.csv';
   const countriesUrl = url + '/countries-aggregated.csv';
+  const worldUrl = url + '/worldwide-aggregate.csv';
   const timeSeriesData = await fetchCsvToJSON(TimeSeriesUrl);
   const countriesData = await fetchCsvToJSON(countriesUrl);
-  const data = normalizeData(timeSeriesData, countriesData);
+  const worldData = await fetchCsvToJSON(worldUrl);
+  const data = normalizeData(timeSeriesData, countriesData, worldData);
   await createCountriesJSON(data);
   await createTodayJSON(data);
 }
@@ -21,9 +23,28 @@ async function fetchCsvToJSON(url) {
   return csv().fromString(csvStr);
 }
 
-function normalizeData(timeSeriesData, countriesData) {
+function normalizeData(timeSeriesData, countriesData, worldData) {
   const startTime = Date.now();
   const result = {};
+
+  // world data
+  result['World'] = {
+    data: [],
+    provinces: {} // countries data
+  };
+
+  for (let item of worldData) {
+    const data = result['World'].data;
+    if (data.length) {
+      const lastDayData = data[data.length - 1];
+      item = {
+        ...item,
+        ConfirmedIncr: item.Confirmed - lastDayData.Confirmed,
+        RecoveredIncr: item.Recovered - lastDayData.Recovered,
+        DeathsIncr: item.Deaths - lastDayData.Deaths
+      };
+    }
+  }
 
   // country data
   for (let item of countriesData) {
@@ -52,6 +73,12 @@ function normalizeData(timeSeriesData, countriesData) {
 
     // push country data
     countryData.push(item);
+    // world data contains countries data as well
+    if (!result['World'].provinces[countryKey]) {
+      result['World'].provinces[countryKey] = {
+        data: countryData
+      };
+    }
   }
 
   // province data
@@ -97,7 +124,9 @@ function normalizeData(timeSeriesData, countriesData) {
   const time = endTime - startTime;
   console.log('normalizeData time: ' + time + 'ms');
 
-  return result;
+  // the data would be used in different functions
+  // thus should not be changed
+  return deepFreeze(result);
 }
 
 async function createCountriesJSON(data) {
@@ -136,6 +165,15 @@ async function createTodayJSON(data) {
   const dataStr = JSON.stringify(todayData);
   await fs.writeFile(path, dataStr);
   console.log('File created: ' + path);
+}
+
+function deepFreeze(obj) {
+  for (const prop of Object.keys(obj)) {
+    if (typeof obj[prop] === 'object') {
+      deepFreeze(obj[prop]);
+    }
+  }
+  return Object.freeze(obj);
 }
 
 export default updateData;
