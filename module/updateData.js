@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import csv from 'csvtojson';
 import fetchText from '../utils/fetchText.js';
-import clearFolder from '../utils/clearFolder.js';
+import countriesCode from '../utils/countriesCode.js';
 
 async function updateData() {
   const url = process.env.NODE_ENV === 'development' ?
@@ -41,7 +41,8 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
         ...item,
         ConfirmedIncr: item.Confirmed - lastDayData.Confirmed,
         RecoveredIncr: item.Recovered - lastDayData.Recovered,
-        DeathsIncr: item.Deaths - lastDayData.Deaths
+        DeathsIncr: item.Deaths - lastDayData.Deaths,
+        updateTime: Date.now()
       };
     }
   }
@@ -54,6 +55,7 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
     } else if (!result[countryKey]) {
       // initialize country key
       result[countryKey] = {
+        iso2: countriesCode[countryKey],
         data: [],
         provinces: {}
       };
@@ -67,7 +69,8 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
         ...item,
         ConfirmedIncr: item.Confirmed - lastDayData.Confirmed,
         RecoveredIncr: item.Recovered - lastDayData.Recovered,
-        DeathsIncr: item.Deaths - lastDayData.Deaths
+        DeathsIncr: item.Deaths - lastDayData.Deaths,
+        updateTime: Date.now()
       };
     }
 
@@ -112,7 +115,8 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
         ...item,
         ConfirmedIncr: item.Confirmed - lastDayData.Confirmed,
         RecoveredIncr: item.Recovered - lastDayData.Recovered,
-        DeathsIncr: item.Deaths - lastDayData.Deaths
+        DeathsIncr: item.Deaths - lastDayData.Deaths,
+        updateTime: Date.now()
       };
     }
 
@@ -166,6 +170,17 @@ async function createTodayJSON(data) {
   await fs.writeFile(path, dataStr);
   console.log('File created: ' + path);
 }
+
+async function clearFolder(path) {
+  try {
+    const files = await fs.readdir(path);
+    for (const file of files) {
+      await fs.unlink(path + '/' + file);
+    }
+  } catch (err) {
+    console.log(err);
+  }
+};
 
 function deepFreeze(obj) {
   for (const prop of Object.keys(obj)) {

@@ -1,13 +1,26 @@
+// Node
+import fs from 'fs/promises';
+import {F_OK} from 'constants';
+
+// Koa
+import Koa from 'koa';
+import Router from '@koa/router';
+import helmet from 'koa-helmet';
+import cacheControl from 'koa-cache-control';
+import serveStatic from 'koa-static';
+
+// Third party package
 import schedule from 'node-schedule';
-import helmet from 'helmet';
-import express from 'express';
+
+// module
 import updateData from './module/updateData.js';
 import updateNews from './module/updateNews.js';
-import respondFile from './utils/respondFile.js';
-import createFolder from './utils/createFolder.js';
 
 // initialize server
-const app = express();
+const app = new Koa();
+const router = new Router();
+
+app.use(cacheControl());
 app.use(
   helmet({
     dnsPrefetchControl: {allow: true},
@@ -15,13 +28,15 @@ app.use(
   })
 );
 
-app.get('/', function(req, res) {
-  console.log(req);
-  res.send('Covid 19 API.');
+router.get('/', async (ctx) => {
+  console.log(ctx.req);
+  ctx.body = 'Covid 19 API.';
 });
 
-app.get('/latest', function(req, res) {
-  console.log(req);
+router.get('/latest', async (ctx, next) => {
+  console.log(ctx.req);
+
+  // calculate max-age
   const now = new Date(Date.now());
   let expire = Date.UTC(
     now.getUTCFullYear(),
@@ -32,19 +47,27 @@ app.get('/latest', function(req, res) {
   if (now.getUTCHours() >= 6) {
     expire += 24 * 60 * 60 * 1000;
   }
-  const maxAge = expire - Date.now() + 60000;
-  const filePath = './response/todayData.json';
-  respondFile(res, filePath, maxAge);
+  const maxAge = (expire - Date.now() + 60000) / 1000;
+  ctx.cacheControl = {
+    maxAge
+  };
+
+  // read the corresponding file and send a response
+  ctx.state.filePath = './response/todayData.json';
+  await next();
 });
 
-app.get('/news', function(req, res) {
-  console.log(req);
-  const filePath = './response/news.json';
-  respondFile(res, filePath, 1800000);
+router.get('/news', async (ctx, next) => {
+  console.log(ctx.req);
+  ctx.cacheControl = {
+    maxAge: 1800
+  };
+  ctx.state.filePath = './response/news.json';
+  await next();
 });
 
-app.get('/countries/:country', (req, res) => {
-  console.log(req);
+router.get('/countries/:country', async (ctx, next) => {
+  console.log(ctx.req);
   const now = new Date(Date.now());
   // data expires at 6:00 UTC every day
   let expire = Date.UTC(
@@ -59,12 +82,22 @@ app.get('/countries/:country', (req, res) => {
     expire += 24 * 60 * 60 * 1000;
   }
   const maxAge = expire - Date.now() + 60000;
-  const country = req.params.country;
-  const filePath = './response/countries/' + country + '.json';
-  respondFile(res, filePath, maxAge);
+  ctx.cacheControl = {maxAge};
+
+  const country = ctx.params.country;
+  ctx.state.filePath = './response/countries/' + country + '.json';
+  await next();
 });
 
-app.use(express.static('public'));
+router.use(async (ctx) => {
+  if (ctx.state.filePath) {
+    console.log(ctx.state.filePath);
+    ctx.body = await readJSONFile(ctx.state.filePath);
+  }
+});
+
+app.use(router.routes());
+app.use(serveStatic('public'));
 app.listen(3100, function() {
   console.log('NODE_ENV is: ' + process.env.NODE_ENV);
   console.log('Covid 19 API running @ http://localhost:3100');
@@ -82,4 +115,25 @@ async function initialize() {
   schedule.scheduleJob('0 6 * * *', () => updateData());
   // set schedule to update news every hour
   schedule.scheduleJob('0 * * * *', () => updateNews());
+}
+
+async function createFolder(dirPath) {
+  try {
+    await fs.access(dirPath, F_OK);
+  } catch (e) {
+    await fs.mkdir(dirPath);
+    console.log('Folder created: ' + dirPath);
+  }
+}
+
+async function readJSONFile(filePath) {
+  try {
+    await fs.access(filePath, F_OK);
+    const str = await fs.readFile(filePath, {encoding: 'utf-8'});
+    return JSON.parse(str);
+  } catch (err) {
+    console.log('File not existed: ' + filePath);
+    console.log(err);
+    return Promise.reject(err);
+  }
 }

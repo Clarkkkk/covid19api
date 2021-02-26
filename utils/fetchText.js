@@ -12,6 +12,7 @@ async function fetchText(url) {
     }
   } catch (err) {
     console.log(err);
+    console.log('URL: ' + url);
     if (retryCount < 10) {
       console.log('Retrying...');
       retryCount++;
