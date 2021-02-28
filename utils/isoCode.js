@@ -1,4 +1,4 @@
-export default {
+const countryCode = {
   'Afghanistan': 'AF',
   'Albania': 'AL',
   'Algeria': 'DZ',
@@ -192,3 +192,42 @@ export default {
   'China': 'CN',
   'US': 'US'
 };
+
+const provinceCode = {
+  'Anhui': 'CN-AH',
+  'Beijing': 'CN-BJ',
+  'Chongqing': 'CN-CQ',
+  'Fujian': 'CN-FJ',
+  'Gansu': 'CN-GS',
+  'Guangdong': 'CN-GD',
+  'Guangxi': 'CN-GX',
+  'Guizhou': 'CN-GZ',
+  'Hainan': 'CN-HI',
+  'Hebei': 'CN-HE',
+  'Heilongjiang': 'CN-HL',
+  'Henan': 'CN-HA',
+  'Hubei': 'CN-HB',
+  'Hunan': 'CN-HN',
+  'Inner Mongolia': 'CN-NM',
+  'Jiangsu': 'CN-JS',
+  'Jiangxi': 'CN-JX',
+  'Jilin': 'CN-JL',
+  'Liaoning': 'CN-LN',
+  'Ningxia': 'CN-NX',
+  'Qinghai': 'CN-QH',
+  'Shaanxi': 'CN-SN',
+  'Shandong': 'CN-SD',
+  'Shanghai': 'CN-SH',
+  'Shanxi': 'CN-SX',
+  'Sichuan': 'CN-SC',
+  'Tianjin': 'CN-TJ',
+  'Tibet': 'CN-XZ',
+  'Xinjiang': 'CN-XJ',
+  'Yunnan': 'CN-YN',
+  'Zhejiang': 'CN-ZJ',
+  'Taiwan': 'CN-TW',
+  'Hong Kong': 'CN-HK',
+  'Macau': 'CN-MO'
+};
+
+export {countryCode, provinceCode};

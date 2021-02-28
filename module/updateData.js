@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import csv from 'csvtojson';
 import fetchText from '../utils/fetchText.js';
-import countriesCode from '../utils/countriesCode.js';
+import {countryCode, provinceCode} from '../utils/isoCode.js';
 
 async function updateData() {
   const url = process.env.NODE_ENV === 'development' ?
@@ -23,66 +23,73 @@ async function fetchCsvToJSON(url) {
   return csv().fromString(csvStr);
 }
 
+function addIncrData(item, arr) {
+  if (arr.length) {
+    const lastItem = arr[arr.length - 1];
+    return {
+      ...item,
+      ConfirmedIncr: item.Confirmed - lastItem.Confirmed,
+      CurrentConfirmedIncr: item.CurrentConfirmed - lastItem.CurrentConfirmed,
+      RecoveredIncr: item.Recovered - lastItem.Recovered,
+      DeathsIncr: item.Deaths - lastItem.Deaths,
+      updateTime: Date.now()
+    };
+  } else {
+    return {
+      ...item,
+      updateTime: Date.now()
+    };
+  }
+}
+
 function normalizeData(timeSeriesData, countriesData, worldData) {
   const startTime = Date.now();
-  const result = {};
+  const dataObj = {};
+
 
   // world data
-  result['World'] = {
+  dataObj['World'] = {
     data: [],
     provinces: {} // countries data
   };
 
   for (let item of worldData) {
-    const data = result['World'].data;
-    if (data.length) {
-      const lastDayData = data[data.length - 1];
-      item = {
-        ...item,
-        ConfirmedIncr: item.Confirmed - lastDayData.Confirmed,
-        RecoveredIncr: item.Recovered - lastDayData.Recovered,
-        DeathsIncr: item.Deaths - lastDayData.Deaths,
-        updateTime: Date.now()
-      };
-    }
+    const data = dataObj['World'].data;
+    item.CurrentConfirmed = item.Confirmed - item.Deaths - item.Recovered;
+    item = addIncrData(item, data);
+    data.push(item);
   }
+
 
   // country data
   for (let item of countriesData) {
     const countryKey = item['Country'];
     if (countryKey === 'Taiwan*') {
       continue; // Taiwan is a province of China
-    } else if (!result[countryKey]) {
+    } else if (!dataObj[countryKey]) {
       // initialize country key
-      result[countryKey] = {
-        iso2: countriesCode[countryKey],
+      dataObj[countryKey] = {
+        iso: countryCode[countryKey],
         data: [],
         provinces: {}
       };
     }
 
     // calculate incremental data
-    const countryData = result[countryKey].data;
-    if (countryData.length) {
-      const lastDayData = countryData[countryData.length - 1];
-      item = {
-        ...item,
-        ConfirmedIncr: item.Confirmed - lastDayData.Confirmed,
-        RecoveredIncr: item.Recovered - lastDayData.Recovered,
-        DeathsIncr: item.Deaths - lastDayData.Deaths,
-        updateTime: Date.now()
-      };
-    }
+    const countryData = dataObj[countryKey].data;
+    item.CurrentConfirmed = item.Confirmed - item.Deaths - item.Recovered;
+    item = addIncrData(item, countryData);
 
     // push country data
     countryData.push(item);
     // world data contains countries data as well
-    if (!result['World'].provinces[countryKey]) {
-      result['World'].provinces[countryKey] = {
+    if (!dataObj['World'].provinces[countryKey]) {
+      dataObj['World'].provinces[countryKey] = {
         data: countryData
       };
     }
   }
+
 
   // province data
   for (let item of timeSeriesData) {
@@ -101,27 +108,41 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
     }
 
     // initialize province key
-    if (!result[countryKey].provinces[provinceKey]) {
-      result[countryKey].provinces[provinceKey] = {
+    if (!dataObj[countryKey].provinces[provinceKey]) {
+      dataObj[countryKey].provinces[provinceKey] = {
+        iso: provinceCode[provinceKey] || '',
         data: []
       };
     }
 
     // calculate incremental data
-    const provinceData = result[countryKey].provinces[provinceKey].data;
-    if (provinceData.length) {
-      const lastDayData = provinceData[provinceData.length - 1];
-      item = {
-        ...item,
-        ConfirmedIncr: item.Confirmed - lastDayData.Confirmed,
-        RecoveredIncr: item.Recovered - lastDayData.Recovered,
-        DeathsIncr: item.Deaths - lastDayData.Deaths,
-        updateTime: Date.now()
-      };
-    }
+    const provinceData = dataObj[countryKey].provinces[provinceKey].data;
+    item.CurrentConfirmed = item.Confirmed - item.Deaths - item.Recovered;
+    item = addIncrData(item, provinceData);
 
     // push province data
     provinceData.push(item);
+  }
+
+
+  // turn dataObj to array structure
+  const result = [];
+  for (const country of Object.keys(dataObj)) {
+    const provinces = [];
+    const provincesKeys = Object.keys(dataObj[country].provinces);
+    for (const province of provincesKeys) {
+      provinces.push({
+        province,
+        data: dataObj[country].provinces[province].data,
+        iso: dataObj[country].provinces[province].iso
+      });
+    }
+    result.push({
+      country,
+      iso: dataObj[country].iso,
+      data: dataObj[country].data,
+      provinces
+    });
   }
 
   const endTime = Date.now();
@@ -133,36 +154,39 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
   return deepFreeze(result);
 }
 
-async function createCountriesJSON(data) {
+async function createCountriesJSON(dataArr) {
   await clearFolder('./response/countries/');
-  for (const country of Object.keys(data)) {
-    const path = './response/countries/' + country + '.json';
-    const dataStr = JSON.stringify(data[country]);
+  for (const item of dataArr) {
+    const path = './response/countries/' + item.country + '.json';
+    const dataStr = JSON.stringify(item);
     await fs.writeFile(path, dataStr);
     // console.log('File created: ' + path);
   }
   console.log('Countries\'s JSONs created.');
 }
 
-async function createTodayJSON(data) {
-  const todayData = {};
+async function createTodayJSON(dataArr) {
+  const todayData = [];
 
   // extract the data of latest day for countries and provinces
-  for (const country of Object.keys(data)) {
-    todayData[country] = {
-      data: data[country].data.slice(-1)[0]
-    };
-
-    const provinces = data[country].provinces;
-    const provincesKeys = Object.keys(provinces);
-    if (provincesKeys.length) {
-      todayData[country].provinces = {};
-      for (const province of provincesKeys) {
-        todayData[country].provinces[province] = {
-          data: provinces[province].data.slice(-1)[0]
-        };
+  for (const item of dataArr) {
+    const provinces = [];
+    if (item.country !== 'World') {
+      for (const obj of item.provinces) {
+        provinces.push({
+          province: obj.province,
+          iso: obj.iso,
+          data: obj.data.slice(-1)[0]
+        });
       }
     }
+
+    todayData.push({
+      country: item.country,
+      iso: item.iso,
+      data: item.data.slice(-1)[0],
+      provinces
+    });
   }
 
   const path = './response/todayData.json';
@@ -182,13 +206,21 @@ async function clearFolder(path) {
   }
 };
 
-function deepFreeze(obj) {
-  for (const prop of Object.keys(obj)) {
-    if (typeof obj[prop] === 'object') {
-      deepFreeze(obj[prop]);
+function deepFreeze(ref) {
+  if (Array.isArray(ref)) {
+    for (const item of ref) {
+      if (typeof item === 'object') {
+        deepFreeze(item);
+      }
+    }
+  } else if (typeof ref === 'object') {
+    for (const prop of Object.keys(ref)) {
+      if (typeof ref[prop] === 'object') {
+        deepFreeze(ref[prop]);
+      }
     }
   }
-  return Object.freeze(obj);
+  return Object.freeze(ref);
 }
 
 export default updateData;

@@ -8,6 +8,7 @@ import Router from '@koa/router';
 import helmet from 'koa-helmet';
 import cacheControl from 'koa-cache-control';
 import serveStatic from 'koa-static';
+import cors from '@koa/cors';
 
 // Third party package
 import schedule from 'node-schedule';
@@ -28,14 +29,25 @@ app.use(
   })
 );
 
+app.use(cors({
+  origin: process.env.NODE_ENV === 'development' ?
+    'http://localhost:8080' : 'https://carllllo.work',
+  maxAge: 60
+}));
+
+app.use(async (ctx, next) => {
+  console.log(ctx.req.url);
+  console.log(ctx.req.headers);
+  console.log(ctx.req.host);
+  console.log(ctx.req.ip);
+  await next();
+});
+
 router.get('/', async (ctx) => {
-  console.log(ctx.req);
   ctx.body = 'Covid 19 API.';
 });
 
 router.get('/latest', async (ctx, next) => {
-  console.log(ctx.req);
-
   // calculate max-age
   const now = new Date(Date.now());
   let expire = Date.UTC(
@@ -53,21 +65,21 @@ router.get('/latest', async (ctx, next) => {
   };
 
   // read the corresponding file and send a response
-  ctx.state.filePath = './response/todayData.json';
-  await next();
+  const filePath = './response/todayData.json';
+  ctx.body = await readJSONFile(filePath);
+  console.log(filePath);
 });
 
 router.get('/news', async (ctx, next) => {
-  console.log(ctx.req);
   ctx.cacheControl = {
     maxAge: 1800
   };
-  ctx.state.filePath = './response/news.json';
-  await next();
+  const filePath = './response/news.json';
+  ctx.body = await readJSONFile(filePath);
+  console.log(filePath);
 });
 
 router.get('/countries/:country', async (ctx, next) => {
-  console.log(ctx.req);
   const now = new Date(Date.now());
   // data expires at 6:00 UTC every day
   let expire = Date.UTC(
@@ -85,15 +97,24 @@ router.get('/countries/:country', async (ctx, next) => {
   ctx.cacheControl = {maxAge};
 
   const country = ctx.params.country;
-  ctx.state.filePath = './response/countries/' + country + '.json';
-  await next();
-});
-
-router.use(async (ctx) => {
-  if (ctx.state.filePath) {
-    console.log(ctx.state.filePath);
-    ctx.body = await readJSONFile(ctx.state.filePath);
+  const filePath = './response/countries/' + country + '.json';
+  const obj = await readJSONFile(filePath);
+  // pagination
+  if (ctx.querystring) {
+    console.log(ctx.querystring);
+    const {limit, page = 0} = ctx.query;
+    if (limit) {
+      const start = limit * page;
+      const end = limit * (page + 1);
+      obj.more = obj.data.length > end;
+      obj.data = obj.data.slice(start, end);
+      for (const key of Object.keys(obj.provinces)) {
+        obj.provinces[key].data = obj.provinces[key].data.slice(start, end);
+      }
+    }
   }
+  ctx.body = obj;
+  console.log(filePath);
 });
 
 app.use(router.routes());
