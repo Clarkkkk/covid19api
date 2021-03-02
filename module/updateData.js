@@ -20,26 +20,7 @@ async function updateData() {
 
 async function fetchCsvToJSON(url) {
   const csvStr = await fetchText(url);
-  return csv().fromString(csvStr);
-}
-
-function addIncrData(item, arr) {
-  if (arr.length) {
-    const lastItem = arr[arr.length - 1];
-    return {
-      ...item,
-      ConfirmedIncr: item.Confirmed - lastItem.Confirmed,
-      CurrentConfirmedIncr: item.CurrentConfirmed - lastItem.CurrentConfirmed,
-      RecoveredIncr: item.Recovered - lastItem.Recovered,
-      DeathsIncr: item.Deaths - lastItem.Deaths,
-      updateTime: Date.now()
-    };
-  } else {
-    return {
-      ...item,
-      updateTime: Date.now()
-    };
-  }
+  return csv({checkType: true}).fromString(csvStr);
 }
 
 function normalizeData(timeSeriesData, countriesData, worldData) {
@@ -163,6 +144,25 @@ async function createCountriesJSON(dataArr) {
     // console.log('File created: ' + path);
   }
   console.log('Countries\'s JSONs created.');
+}
+
+function addIncrData(item, arr) {
+  if (arr.length) {
+    const lastItem = arr[arr.length - 1];
+    return {
+      ...item,
+      ConfirmedIncr: item.Confirmed - lastItem.Confirmed,
+      CurrentConfirmedIncr: item.CurrentConfirmed - lastItem.CurrentConfirmed,
+      RecoveredIncr: item.Recovered - lastItem.Recovered,
+      DeathsIncr: item.Deaths - lastItem.Deaths,
+      updateTime: Date.now()
+    };
+  } else {
+    return {
+      ...item,
+      updateTime: Date.now()
+    };
+  }
 }
 
 async function createTodayJSON(dataArr) {
