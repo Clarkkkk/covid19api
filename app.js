@@ -100,9 +100,11 @@ router.get('/countries/:country', async (ctx, next) => {
   const filePath = './response/countries/' + country + '.json';
   const obj = await readJSONFile(filePath);
   // pagination
+  console.log(ctx.querystring);
   if (ctx.querystring) {
-    console.log(ctx.querystring);
-    const {limit, page = 0} = ctx.query;
+    // convert the query params to number
+    const limit = +ctx.query.limit;
+    const page = +ctx.query.page || 0;
     if (limit) {
       const start = limit * page;
       const end = limit * (page + 1);

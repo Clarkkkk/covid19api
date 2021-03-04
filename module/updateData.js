@@ -27,7 +27,6 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
   const startTime = Date.now();
   const dataObj = {};
 
-
   // world data
   dataObj['World'] = {
     data: [],
@@ -160,6 +159,10 @@ function addIncrData(item, arr) {
   } else {
     return {
       ...item,
+      ConfirmedIncr: item.Confirmed,
+      CurrentConfirmedIncr: item.CurrentConfirmed,
+      RecoveredIncr: item.Recovered,
+      DeathsIncr: item.Deaths,
       updateTime: Date.now()
     };
   }
