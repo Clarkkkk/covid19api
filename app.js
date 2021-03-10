@@ -79,7 +79,8 @@ router.get('/news', async (ctx, next) => {
   console.log(filePath);
 });
 
-router.get('/countries/:country', async (ctx, next) => {
+const countryRouter = new Router({prefix: '/countries'});
+countryRouter.use(async (ctx, next) => {
   const now = new Date(Date.now());
   // data expires at 6:00 UTC every day
   let expire = Date.UTC(
@@ -95,13 +96,25 @@ router.get('/countries/:country', async (ctx, next) => {
   }
   const maxAge = expire - Date.now() + 60000;
   ctx.cacheControl = {maxAge};
+  await next();
+});
 
+countryRouter.get('/:country', async (ctx, next) => {
   const country = ctx.params.country;
   const filePath = './response/countries/' + country + '.json';
   const obj = await readJSONFile(filePath);
+  delete obj.provinces;
+  ctx.body = obj;
+  await next();
+});
+
+countryRouter.get('/:country/:province', async (ctx, next) => {
+  const country = ctx.params.country;
+  const province = ctx.params.province;
+  const filePath = './response/countries/' + country + '.json';
+  const obj = await readJSONFile(filePath);
   // pagination
-  console.log(ctx.querystring);
-  if (ctx.querystring) {
+  if (province === 'all') {
     // convert the query params to number
     const limit = +ctx.query.limit;
     const page = +ctx.query.page || 0;
@@ -110,14 +123,18 @@ router.get('/countries/:country', async (ctx, next) => {
       const end = limit * (page + 1);
       obj.more = obj.data.length > end;
       obj.data = obj.data.slice(start, end);
-      for (const key of Object.keys(obj.provinces)) {
-        obj.provinces[key].data = obj.provinces[key].data.slice(start, end);
+      for (const province of obj.provinces) {
+        province.data = province.data.slice(start, end);
       }
     }
+    ctx.body = obj;
+  } else {
+    ctx.body = obj.provinces.find((obj) => obj.province === province);
   }
-  ctx.body = obj;
-  console.log(filePath);
+  await next();
 });
+
+router.use(countryRouter.routes());
 
 app.use(router.routes());
 app.use(serveStatic('public'));
