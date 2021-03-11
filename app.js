@@ -61,20 +61,27 @@ router.get('/latest', async (ctx, next) => {
   }
   const maxAge = (expire - Date.now() + 60000) / 1000;
   ctx.cacheControl = {
-    maxAge
+    maxAge: Math.floor(maxAge),
+    mustRevalidate: true
   };
 
   // read the corresponding file and send a response
   const filePath = './response/todayData.json';
+  const stats = await fs.stat(filePath);
+  ctx.lastModified = new Date(stats.mtimeMs);
   ctx.body = await readJSONFile(filePath);
   console.log(filePath);
 });
 
 router.get('/news', async (ctx, next) => {
-  ctx.cacheControl = {
-    maxAge: 1800
-  };
   const filePath = './response/news.json';
+  const stats = await fs.stat(filePath);
+  const maxAge = (stats.mtimeMs + 3600000 - Date.now()) / 1000;
+  ctx.cacheControl = {
+    maxAge: Math.floor(maxAge), // should be integer
+    mustRevalidate: true
+  };
+  ctx.lastModified = new Date(stats.mtimeMs);
   ctx.body = await readJSONFile(filePath);
   console.log(filePath);
 });
@@ -94,14 +101,19 @@ countryRouter.use(async (ctx, next) => {
   if (now.getUTCHours() >= 6) {
     expire += 24 * 60 * 60 * 1000;
   }
-  const maxAge = expire - Date.now() + 60000;
-  ctx.cacheControl = {maxAge};
+  const maxAge = (expire - Date.now() + 60000) / 1000;
+  ctx.cacheControl = {
+    maxAge: Math.floor(maxAge),
+    mustRevalidate: true
+  };
   await next();
 });
 
 countryRouter.get('/:country', async (ctx, next) => {
   const country = ctx.params.country;
   const filePath = './response/countries/' + country + '.json';
+  const stats = await fs.stat(filePath);
+  ctx.lastModified = new Date(stats.mtimeMs);
   const obj = await readJSONFile(filePath);
   delete obj.provinces;
   ctx.body = obj;
@@ -112,6 +124,8 @@ countryRouter.get('/:country/:province', async (ctx, next) => {
   const country = ctx.params.country;
   const province = ctx.params.province;
   const filePath = './response/countries/' + country + '.json';
+  const stats = await fs.stat(filePath);
+  ctx.lastModified = new Date(stats.mtimeMs);
   const obj = await readJSONFile(filePath);
   // pagination
   if (province === 'all') {
@@ -137,7 +151,10 @@ countryRouter.get('/:country/:province', async (ctx, next) => {
 router.use(countryRouter.routes());
 
 app.use(router.routes());
-app.use(serveStatic('public'));
+app.use(serveStatic('public', {
+  maxage: 2592000000,
+  gzip: false
+}));
 app.listen(3100, function() {
   console.log('NODE_ENV is: ' + process.env.NODE_ENV);
   console.log('Covid 19 API running @ http://localhost:3100');

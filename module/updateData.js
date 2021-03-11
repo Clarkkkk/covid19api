@@ -65,6 +65,7 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
     // world data contains countries data as well
     if (!dataObj['World'].provinces[countryKey]) {
       dataObj['World'].provinces[countryKey] = {
+        iso: countryCode[countryKey],
         data: countryData
       };
     }
