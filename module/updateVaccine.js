@@ -47,6 +47,8 @@ function normalizeData(rawData) {
 
   const result = [];
   for (const countryKey of Object.keys(dataObj)) {
+    // abandon continent's data
+    if (!iso3To2[countryKey]) continue;
     result.push({
       iso: iso3To2[countryKey],
       ...dataObj[countryKey]
@@ -58,7 +60,8 @@ function normalizeData(rawData) {
 async function createCountriesJSON(dataArr) {
   await clearFolder('./response/vaccine/countries/');
   for (const item of dataArr) {
-    const path = './response/vaccine/countries/' + item.iso + '.json';
+    const fileName = item.iso.toLowerCase();
+    const path = `./response/vaccine/countries/${fileName}.json`;
     const dataStr = JSON.stringify(item);
     await fs.writeFile(path, dataStr);
   }

@@ -142,10 +142,10 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
 async function createCountriesJSON(dataArr) {
   await clearFolder('./response/covid/countries/');
   for (const item of dataArr) {
-    const path = './response/covid/countries/' + item.country + '.json';
+    const fileName = item.country.toLowerCase();
+    const path = `./response/covid/countries/${fileName}.json`;
     const dataStr = JSON.stringify(item);
     await fs.writeFile(path, dataStr);
-    // console.log('File created: ' + path);
   }
   console.log('Countries\'s JSONs created.');
 }

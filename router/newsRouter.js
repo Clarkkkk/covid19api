@@ -7,7 +7,7 @@ import {
 
 const newsRouter = new Router({prefix: '/news'});
 
-newsRouter.get('/news', async (ctx, next) => {
+newsRouter.get('/', async (ctx, next) => {
   const filePath = './response/news.json';
   const stats = await fs.stat(filePath);
   const maxAge = (stats.mtimeMs + 3600000 - Date.now()) / 1000;

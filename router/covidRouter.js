@@ -15,27 +15,27 @@ covidRouter.use(async (ctx, next) => {
   await next();
 });
 
-covidRouter.get('/latest', async (ctx, next) => {
-  // read the corresponding file and send a response
-  const filePath = './response/covid/latest.json';
-  ctx.lastModified = await getLastModified(filePath);
-  ctx.body = await readJSONFile(filePath);
-  await next();
-});
-
 covidRouter.get('/:country', async (ctx, next) => {
-  const country = ctx.params.country;
-  const filePath = './response/covid/countries/' + country + '.json';
-  ctx.lastModified =await getLastModified(filePath);
-  const obj = await readJSONFile(filePath);
-  delete obj.provinces;
-  ctx.body = obj;
+  const country = ctx.params.country.toLowerCase();
+  let filePath;
+  let body;
+  if (country === 'latest') {
+    filePath = './response/covid/latest.json';
+    body = await readJSONFile(filePath);
+  } else {
+    filePath = './response/covid/countries/' + country + '.json';
+    const obj = await readJSONFile(filePath);
+    delete obj.provinces;
+    body = obj;
+  }
+  ctx.lastModified = await getLastModified(filePath);
+  ctx.body = body;
   await next();
 });
 
 covidRouter.get('/:country/:province', async (ctx, next) => {
-  const country = ctx.params.country;
-  const province = ctx.params.province;
+  const country = ctx.params.country.toLowerCase();
+  const province = ctx.params.province.toLowerCase();
   const filePath = './response/covid/countries/' + country + '.json';
   ctx.lastModified = await getLastModified(filePath);
   const obj = await readJSONFile(filePath);
@@ -55,7 +55,9 @@ covidRouter.get('/:country/:province', async (ctx, next) => {
     }
     ctx.body = obj;
   } else {
-    ctx.body = obj.provinces.find((obj) => obj.province === province);
+    ctx.body = obj.provinces.find((obj) => {
+      return obj.province.toLowerCase() === province;
+    });
   }
   await next();
 });
