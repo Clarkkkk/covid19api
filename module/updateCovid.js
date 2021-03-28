@@ -1,7 +1,11 @@
 import fs from 'fs/promises';
 import csv from 'csvtojson';
-import fetchText from '../utils/fetchText.js';
-import {countryCode, provinceCode} from '../utils/isoCode.js';
+import {
+  clearFolder,
+  fetchText,
+  countryCode,
+  provinceCode
+} from '../utils/index.js';
 
 async function updateData() {
   const url = process.env.NODE_ENV === 'development' ?
@@ -136,9 +140,9 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
 }
 
 async function createCountriesJSON(dataArr) {
-  await clearFolder('./response/countries/');
+  await clearFolder('./response/covid/countries/');
   for (const item of dataArr) {
-    const path = './response/countries/' + item.country + '.json';
+    const path = './response/covid/countries/' + item.country + '.json';
     const dataStr = JSON.stringify(item);
     await fs.writeFile(path, dataStr);
     // console.log('File created: ' + path);
@@ -193,22 +197,11 @@ async function createTodayJSON(dataArr) {
     });
   }
 
-  const path = './response/todayData.json';
+  const path = './response/covid/latest.json';
   const dataStr = JSON.stringify(todayData);
   await fs.writeFile(path, dataStr);
   console.log('File created: ' + path);
 }
-
-async function clearFolder(path) {
-  try {
-    const files = await fs.readdir(path);
-    for (const file of files) {
-      await fs.unlink(path + '/' + file);
-    }
-  } catch (err) {
-    console.log(err);
-  }
-};
 
 function deepFreeze(ref) {
   if (Array.isArray(ref)) {

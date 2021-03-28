@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import xml2js from 'xml2js';
-import fetchText from '../utils/fetchText.js';
+import {fetchText} from '../utils/index.js';
 
 async function updateNews() {
   const newsUrl = process.env.NODE_ENV === 'development' ?
