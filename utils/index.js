@@ -5,6 +5,7 @@ import {countryCode, provinceCode, iso3To2} from './isoCode.js';
 import readJSONFile from './readJSONFile.js';
 import getMaxAgeForEveryDay from './getMaxAgeForEveryDay.js';
 import getLastModified from './getLastModified.js';
+import Checker from './Checker.js';
 
 export {
   clearFolder,
@@ -15,5 +16,6 @@ export {
   iso3To2,
   readJSONFile,
   getMaxAgeForEveryDay,
-  getLastModified
+  getLastModified,
+  Checker
 };

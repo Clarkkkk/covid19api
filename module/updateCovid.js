@@ -3,20 +3,28 @@ import csv from 'csvtojson';
 import {
   clearFolder,
   fetchText,
+  Checker,
   countryCode,
   provinceCode
 } from '../utils/index.js';
 
-async function updateData() {
-  const url = process.env.NODE_ENV === 'development' ?
-    'http://localhost:3100' :
-    'https://raw.githubusercontent.com/datasets/covid-19/main/data';
-  const TimeSeriesUrl = url + '/time-series-19-covid-combined.csv';
-  const countriesUrl = url + '/countries-aggregated.csv';
-  const worldUrl = url + '/worldwide-aggregate.csv';
+const url = process.env.NODE_ENV === 'development' ?
+  'http://localhost:3100' :
+  'https://raw.githubusercontent.com/datasets/covid-19/main/data';
+const TimeSeriesUrl = url + '/time-series-19-covid-combined.csv';
+const countriesUrl = url + '/countries-aggregated.csv';
+const worldUrl = url + '/worldwide-aggregate.csv';
+
+const checker = new Checker(worldUrl, 1800);
+
+async function updateCovid() {
+  const worldCsv = await checker.checkUpdate();
+
+  if (!worldCsv) return;
+
+  const worldData = await csv({checkType: true}).fromString(worldCsv);
   const timeSeriesData = await fetchCsvToJSON(TimeSeriesUrl);
   const countriesData = await fetchCsvToJSON(countriesUrl);
-  const worldData = await fetchCsvToJSON(worldUrl);
   const data = normalizeData(timeSeriesData, countriesData, worldData);
   await createCountriesJSON(data);
   await createTodayJSON(data);
@@ -34,6 +42,7 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
   // world data
   dataObj['World'] = {
     data: [],
+    iso: countryCode['World'],
     provinces: {} // countries data
   };
 
@@ -82,7 +91,7 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
     let provinceKey;
 
     // Taiwan belongs to China
-    if (countryKey === 'Taiwan*') {
+    if (item['Country/Region'] === 'Taiwan*') {
       countryKey = 'China';
       provinceKey = 'Taiwan';
     } else if (!item['Province/State']) {
@@ -142,7 +151,9 @@ function normalizeData(timeSeriesData, countriesData, worldData) {
 async function createCountriesJSON(dataArr) {
   await clearFolder('./response/covid/countries/');
   for (const item of dataArr) {
-    const fileName = item.country.toLowerCase();
+    // skip the data of Diamond Princess and MS Zaandam
+    if (!item.iso) continue;
+    const fileName = item.iso.toLowerCase();
     const path = `./response/covid/countries/${fileName}.json`;
     const dataStr = JSON.stringify(item);
     await fs.writeFile(path, dataStr);
@@ -220,4 +231,4 @@ function deepFreeze(ref) {
   return Object.freeze(ref);
 }
 
-export default updateData;
+export default updateCovid;

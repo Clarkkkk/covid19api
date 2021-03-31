@@ -80,10 +80,10 @@ async function initialize() {
   await updateCovid();
   await updateNews();
   await updateVaccine();
-  // set schedule to update data at 6:00 UTC every day
-  schedule.scheduleJob('0 6 * * *', () => updateCovid());
-  // set schedule to update vaccine data at 13:00 UTC every day
-  schedule.scheduleJob('0 13 * * *', () => updateVaccine());
+  // set schedule to update data at 6:30 UTC every day
+  schedule.scheduleJob('30 6 * * *', () => updateCovid());
+  // set schedule to update vaccine data at 12:00 UTC every day
+  schedule.scheduleJob('0 12 * * *', () => updateVaccine());
   // set schedule to update news every hour
   schedule.scheduleJob('0 * * * *', () => updateNews());
 }

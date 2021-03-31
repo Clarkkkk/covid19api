@@ -1,12 +1,22 @@
 import fs from 'fs/promises';
 import csv from 'csvtojson';
-import {fetchText, clearFolder, iso3To2} from '../utils/index.js';
+import {
+  clearFolder,
+  iso3To2,
+  Checker
+} from '../utils/index.js';
+
+const url = process.env.NODE_ENV === 'development' ?
+  'http://localhost:3100/vaccinations.csv' :
+  'https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/vaccinations.csv';
+
+const checker = new Checker(url, 1800);
 
 async function updateVaccine() {
-  const url = process.env.NODE_ENV === 'development' ?
-    'http://localhost:3100/vaccinations.csv' :
-    'https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/vaccinations.csv';
-  const csvStr = await fetchText(url);
+  const csvStr = await checker.checkUpdate();
+
+  if (!csvStr) return;
+
   const rawData = await csv({checkType: true}).fromString(csvStr);
   const data = normalizeData(rawData);
   await createCountriesJSON(data);
