@@ -2,6 +2,7 @@ import fs from 'fs/promises';
 import csv from 'csvtojson';
 import {
   clearFolder,
+  readJSONFile,
   iso3To2,
   Checker
 } from '../utils/index.js';
@@ -21,6 +22,7 @@ async function updateVaccine() {
   const data = normalizeData(rawData);
   await createCountriesJSON(data);
   await createTodayJSON(data);
+  await updateCovidJSON(data);
 }
 
 function normalizeData(rawData) {
@@ -92,6 +94,68 @@ async function createTodayJSON(dataArr) {
   const dataStr = JSON.stringify(todayData);
   await fs.writeFile(path, dataStr);
   console.log('File created: ' + path);
+}
+
+async function updateCovidJSON(dataArr) {
+  const worldCovidPath = './response/covid/countries/world.json';
+  const worldCovidData = await readJSONFile(worldCovidPath);
+  const countries = worldCovidData.provinces;
+  for (const item of dataArr) {
+    const vaccineData = item.data;
+    const fileName = item.iso.toLowerCase();
+    const path = `./response/covid/countries/${fileName}.json`;
+    let index = -1;
+    try {
+      let covidObj;
+      if (item.country === 'World') {
+        covidObj = worldCovidData;
+      } else {
+        covidObj = await readJSONFile(path);
+      }
+      const covidData = covidObj.data;
+      for (const covidDataEntry of covidData) {
+        if (covidDataEntry.Date === vaccineData[0].date) {
+          index = 0;
+        }
+
+        if (index >= 0 && covidDataEntry.Date === vaccineData[index]?.date) {
+          Object.assign(covidDataEntry, {
+            total: vaccineData[index].total,
+            totalPerHundred: vaccineData[index].totalPerHundred,
+            daily: vaccineData[index].daily,
+            dailyPerMillion: vaccineData[index].dailyPerMillion
+          });
+          index++;
+        }
+      }
+      await fs.writeFile(path, JSON.stringify(covidObj));
+    } catch (err) {
+      console.log(err.message);
+      continue;
+    }
+
+    const countryObj =
+      countries.find((entry) => entry.iso === item.iso);
+    if (countryObj) {
+      for (const covidDataEntry of countryObj.data) {
+        if (covidDataEntry.Date === vaccineData[0].date) {
+          index = 0;
+        }
+
+        if (index >= 0 && covidDataEntry.Date === vaccineData[index]?.date) {
+          Object.assign(covidDataEntry, {
+            total: vaccineData[index].total,
+            totalPerHundred: vaccineData[index].totalPerHundred,
+            daily: vaccineData[index].daily,
+            dailyPerMillion: vaccineData[index].dailyPerMillion
+          });
+          index++;
+        }
+      }
+    }
+  }
+  await fs.writeFile(worldCovidPath, JSON.stringify(worldCovidData));
+  console.log('Added vaccine data to covid files.');
 }
 
 export default updateVaccine;
